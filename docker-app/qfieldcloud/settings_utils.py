@@ -116,3 +116,7 @@ def get_socialaccount_providers_config() -> dict:
         )
 
     return providers
+
+
+def parse_string_to_list(input_str: str) -> list[str]:
+    return [item.strip() for item in input_str.split(",") if item.strip()]
