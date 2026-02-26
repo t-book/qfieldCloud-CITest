@@ -9,6 +9,7 @@ asgiref==3.9.1
     #   django
     #   django-allauth
     #   django-axes
+    #   django-cors-headers
     #   django-countries
 attrs==25.3.0
     # via
@@ -49,6 +50,7 @@ django==4.2.28
     #   django-bootstrap4
     #   django-classy-tags
     #   django-common-helpers
+    #   django-cors-headers
     #   django-cron
     #   django-currentuser
     #   django-debug-toolbar
@@ -86,6 +88,8 @@ django-cleanup==9.0.0
 django-common-helpers==0.9.2
     # via -r /requirements/requirements.in
 django-constance==4.3.2
+    # via -r /requirements/requirements.in
+django-cors-headers==4.9.0
     # via -r /requirements/requirements.in
 django-countries==8.2.0
     # via -r /requirements/requirements.in
