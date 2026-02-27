@@ -1,0 +1,32 @@
+# Pull cached layers from GHCR for CI builds.
+# Appended to COMPOSE_FILE in the test workflow.
+# Uses images pushed by build_and_push.yml as layer cache.
+
+services:
+
+  app:
+    build:
+      cache_from:
+        - ghcr.io/opengisch/qfieldcloud-app-test:edge
+        - ghcr.io/opengisch/qfieldcloud-app:edge
+
+  worker_wrapper:
+    build:
+      cache_from:
+        - ghcr.io/opengisch/qfieldcloud-worker-wrapper:edge
+        - ghcr.io/opengisch/qfieldcloud-app:edge
+
+  qgis:
+    build:
+      cache_from:
+        - ghcr.io/opengisch/qfieldcloud-qgis:edge
+
+  nginx:
+    build:
+      cache_from:
+        - ghcr.io/opengisch/qfieldcloud-nginx:edge
+
+  createbuckets:
+    build:
+      cache_from:
+        - ghcr.io/opengisch/qfieldcloud-createbuckets:edge
