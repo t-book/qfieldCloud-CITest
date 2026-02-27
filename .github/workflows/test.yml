@@ -116,7 +116,8 @@ jobs:
 
       - name: Build and run docker containers
         run: |
-          docker compose up -d --build
+          docker compose build app worker_wrapper
+          docker compose up -d
 
       - name: Initial manage.py commands
         run: |
