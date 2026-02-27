@@ -116,8 +116,7 @@ jobs:
 
       - name: Build and run docker containers
         run: |
-          docker compose build app worker_wrapper
-          docker compose up -d
+          docker compose up -d --build
 
       - name: Initial manage.py commands
         run: |
@@ -128,7 +127,7 @@ jobs:
       - name: Run mandatory unit and integration tests
         if: matrix.django_app != '__flaky__'
         run: |
-          docker compose run app python manage.py test --keepdb -v2 --exclude-tag="flaky" qfieldcloud.${{ matrix.django_app }}
+          docker compose run app python manage.py test --keepdb -v2 --exclude-tag="flaky" --timing qfieldcloud.${{ matrix.django_app }}
 
       - name: Run flaky unit and integration tests
         if: matrix.django_app == '__flaky__'
