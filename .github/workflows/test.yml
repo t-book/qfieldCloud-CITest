@@ -127,7 +127,14 @@ jobs:
       - name: Run mandatory unit and integration tests
         if: matrix.django_app != '__flaky__'
         run: |
-          docker compose run app python manage.py test --keepdb -v2 --exclude-tag="flaky" --timing qfieldcloud.${{ matrix.django_app }}
+          docker compose run app bash -c '
+            for f in qfieldcloud/${{ matrix.django_app }}/tests/test_*.py; do
+              mod=$(echo $f | sed "s|/|.|g" | sed "s|\.py$||")
+              echo ">>> START $mod"
+              time python manage.py test --keepdb -v0 --exclude-tag="flaky" "$mod"
+              echo ">>> END $mod"
+            done
+          '
 
       - name: Run flaky unit and integration tests
         if: matrix.django_app == '__flaky__'
