@@ -12,7 +12,6 @@ on:
   pull_request:
 
 jobs:
-  # 1. LINT: Code-Qualität zuerst prüfen
   lint:
     if: '! github.event.pull_request.draft'
     name: Lint code base
@@ -33,10 +32,8 @@ jobs:
           SKIP: no-commit-to-branch
         uses: pre-commit/action@v3.0.1
 
-  # 2. TEST: Nur ausführen, wenn Lint erfolgreich war
   test:
-    needs: lint
-    name: Run tests (${{ matrix.django_app }} | ${{ matrix.storage }})
+    name: Run tests
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -51,47 +48,8 @@ jobs:
         storage:
           - default
           - legacy_storage
-    
-    # Zentrale Umgebungsvariablen definieren
-    env:
-      ENVIRONMENT: test
-      COMPOSE_FILE: docker-compose.yml:docker-compose.override.test.yml
-      STORAGES_PROJECT_DEFAULT_STORAGE: ${{ matrix.storage }}
-      # Die JSON-Struktur sauber als Multiline-String hinterlegen
-      STORAGES: >-
-        {
-          "legacy_storage": {
-            "BACKEND": "qfieldcloud.filestorage.backend.QfcS3Boto3Storage",
-            "OPTIONS": {
-              "access_key": "rustfsadmin",
-              "secret_key": "rustfsadmin",
-              "bucket_name": "qfieldcloud-local-legacy",
-              "region_name": "",
-              "endpoint_url": "http://172.17.0.1:8009"
-            },
-            "QFC_IS_LEGACY": true
-          },
-          "webdav": {
-            "BACKEND": "qfieldcloud.filestorage.backend.QfcWebDavStorage",
-            "OPTIONS": {
-              "webdav_url": "http://qfc_webdav_user:qfc_webdav_pwd@webdav",
-              "public_url": "http://webdav",
-              "basic_auth": "qfc_webdav_user:qfc_webdav_pwd"
-            },
-            "QFC_IS_LEGACY": false
-          },
-          "default": {
-            "BACKEND": "qfieldcloud.filestorage.backend.QfcS3Boto3Storage",
-            "OPTIONS": {
-              "access_key": "rustfsadmin",
-              "secret_key": "rustfsadmin",
-              "bucket_name": "qfieldcloud-local",
-              "region_name": "",
-              "endpoint_url": "http://172.17.0.1:8009"
-            },
-            "QFC_IS_LEGACY": false
-          }
-        }
+
+    continue-on-error: true
 
     steps:
       - name: Checkout repo
@@ -99,47 +57,83 @@ jobs:
         with:
           submodules: recursive
 
-      # Docker Buildx einrichten für besseres Caching
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Disable IPv6 for Docker (fix apt in docker build)
+        run: |
+          sudo mkdir -p /etc/docker
+          cat <<EOF | sudo tee /etc/docker/daemon.json
+          {
+            "ipv6": false
+          }
+          EOF
+          sudo systemctl restart docker
 
-      # Das Image bauen und den GitHub Actions Cache nutzen
-      - name: Build Docker Image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          load: true # Image für lokale Docker-Befehle verfügbar machen
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      - name: Check env vars configuration
+        run: scripts/check_envvars.sh
 
-      - name: Prepare Environment
+      - name: Export the env variables file
         run: |
           cp .env.example .env
-          # Wir nutzen die env-Variablen von oben direkt in Docker Compose
-          # Es ist nicht mehr nötig, alles mühsam in die .env zu schreiben
+          sed -ri 's/^ENVIRONMENT=(.*)/ENVIRONMENT=test/g' .env
+          sed -ri 's/^COMPOSE_FILE=(.*)/COMPOSE_FILE=\1:docker-compose.override.test.yml/g' .env
+          eval $(egrep "^[^#;]" .env | xargs -d'\n' -n1 | sed -E 's/(\w+)=(.*)/export \1='"'"'\2'"'"'/g')
 
-      - name: Pull & Up
+          cat <<EOF >> .env
+          STORAGES='{
+              "legacy_storage": {
+                  "BACKEND": "qfieldcloud.filestorage.backend.QfcS3Boto3Storage",
+                  "OPTIONS": {
+                      "access_key": "rustfsadmin",
+                      "secret_key": "rustfsadmin",
+                      "bucket_name": "qfieldcloud-local-legacy",
+                      "region_name": "",
+                      "endpoint_url": "http://172.17.0.1:8009"
+                  },
+                  "QFC_IS_LEGACY": true
+              },
+              "webdav": {
+                  "BACKEND": "qfieldcloud.filestorage.backend.QfcWebDavStorage",
+                  "OPTIONS": {
+                      "webdav_url": "http://qfc_webdav_user:qfc_webdav_pwd@webdav",
+                      "public_url": "http://webdav",
+                      "basic_auth": "qfc_webdav_user:qfc_webdav_pwd"
+                  },
+                  "QFC_IS_LEGACY": false
+              },
+              "default": {
+                  "BACKEND": "qfieldcloud.filestorage.backend.QfcS3Boto3Storage",
+                  "OPTIONS": {
+                      "access_key": "rustfsadmin",
+                      "secret_key": "rustfsadmin",
+                      "bucket_name": "qfieldcloud-local",
+                      "region_name": "",
+                      "endpoint_url": "http://172.17.0.1:8009"
+                  },
+                  "QFC_IS_LEGACY": false
+              }
+          }'
+          EOF
+
+          echo "STORAGES_PROJECT_DEFAULT_STORAGE=${{ matrix.storage }}" >> .env
+
+      - name: Pull docker containers
+        run: docker compose pull
+
+      - name: Build and run docker containers
+        run: docker compose up -d --build
+
+      - name: Initial manage.py commands
         run: |
-          docker compose pull --ignore-pull-failures
-          docker compose up -d
+          docker compose run app python manage.py makemigrations --no-input --check
+          docker compose run app python manage.py migrate
+          docker compose run app python manage.py collectstatic
 
-      - name: Initial Django setup
-        run: |
-          docker compose run --rm app python manage.py makemigrations --no-input --check
-          docker compose run --rm app python manage.py migrate
-          docker compose run --rm app python manage.py collectstatic --no-input
-
-      - name: Run mandatory tests
+      - name: Run mandatory unit and integration tests
         if: matrix.django_app != '__flaky__'
-        run: |
-          docker compose run --rm app python manage.py test --keepdb -v2 --exclude-tag="flaky" qfieldcloud.${{ matrix.django_app }}
+        run: docker compose run app python manage.py test --keepdb -v2 --exclude-tag="flaky" qfieldcloud.${{ matrix.django_app }}
 
-      - name: Run flaky tests
+      - name: Run flaky unit and integration tests
         if: matrix.django_app == '__flaky__'
-        # Hier erlauben wir Fehlschläge nur für diesen Step, falls gewünscht
-        continue-on-error: true
-        run: |
-          docker compose run --rm app python manage.py test --keepdb -v2 --tag="flaky" qfieldcloud
+        run: docker compose run app python manage.py test --keepdb -v2 --tag="flaky" qfieldcloud
 
       - name: Run Object Storage Cleaner tests
         if: matrix.django_app == 'filestorage' && matrix.storage == 'default'
@@ -151,16 +145,14 @@ jobs:
             -v ${{ github.workspace }}/scripts:/usr/src/scripts \
             app python /usr/src/scripts/object_storage_cleaner/test.py
 
-      - name: Show logs on failure
+      - name: failure logs
         if: failure()
-        run: docker compose logs --tail=100
+        run: docker compose logs
 
       - name: Post Google Chat message on failure
-        if: failure() && matrix.django_app != '__flaky__'
+        if: failure() && matrix.django_app != '__flaky__' && secrets.GOOGLE_CHAT_WEBHOOK_URL != ''
         uses: julb/action-post-googlechat-message@v1
         with:
           message: |
-            ❌ Failed job: `${{ matrix.django_app }}` (${{ matrix.storage }})
-            Branch: `${{ github.head_ref || github.ref_name }}`
-            Check: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            Failed job run for branch `${{ github.head_ref || github.ref_name }}`, check ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} .
           gchat_webhook_url: ${{ secrets.GOOGLE_CHAT_WEBHOOK_URL }}
