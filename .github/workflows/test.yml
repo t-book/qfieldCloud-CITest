@@ -57,6 +57,7 @@ jobs:
         with:
           submodules: recursive
 
+      # ⭐⭐⭐ THE ONLY CHANGE ⭐⭐⭐
       - name: Disable IPv6 for Docker (fix apt in docker build)
         run: |
           sudo mkdir -p /etc/docker
@@ -150,7 +151,7 @@ jobs:
         run: docker compose logs
 
       - name: Post Google Chat message on failure
-        if: failure() && matrix.django_app != '__flaky__' && secrets.GOOGLE_CHAT_WEBHOOK_URL != ''
+        if: failure() && matrix.django_app != '__flaky__'
         uses: julb/action-post-googlechat-message@v1
         with:
           message: |
