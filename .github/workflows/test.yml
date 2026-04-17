@@ -26,21 +26,18 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-
       - name: Pre-commit
         env:
+          # set the `no-commit-to-branch` to be skipped, otherwise the check fails when we merge to `master` branch
           SKIP: no-commit-to-branch
         uses: pre-commit/action@v3.0.1
 
   test:
     name: Run tests
     runs-on: ubuntu-24.04
-
-    # ⭐⭐ CRITICAL: disable buildkit (new GitHub default) ⭐⭐
     env:
       DOCKER_BUILDKIT: 0
       COMPOSE_DOCKER_CLI_BUILD: 0
-
     strategy:
       fail-fast: false
       matrix:
@@ -54,16 +51,12 @@ jobs:
         storage:
           - default
           - legacy_storage
-
     continue-on-error: true
-
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
           submodules: recursive
-
-      # ⭐⭐ CRITICAL: disable IPv6 on runner ⭐⭐
       - name: Disable IPv6 for Docker (fix apt in docker build)
         run: |
           sudo mkdir -p /etc/docker
@@ -73,9 +66,9 @@ jobs:
           }
           EOF
           sudo systemctl restart docker
-
       - name: Check env vars configuration
-        run: scripts/check_envvars.sh
+        run: |
+          scripts/check_envvars.sh
 
       - name: Export the env variables file
         run: |
@@ -126,7 +119,8 @@ jobs:
         run: docker compose pull
 
       - name: Build and run docker containers
-        run: docker compose up -d --build
+        run: |
+          docker compose up -d --build
 
       - name: Initial manage.py commands
         run: |
@@ -136,11 +130,13 @@ jobs:
 
       - name: Run mandatory unit and integration tests
         if: matrix.django_app != '__flaky__'
-        run: docker compose run app python manage.py test --keepdb -v2 --exclude-tag="flaky" qfieldcloud.${{ matrix.django_app }}
+        run: |
+          docker compose run app python manage.py test --keepdb -v2 --exclude-tag="flaky" qfieldcloud.${{ matrix.django_app }}
 
       - name: Run flaky unit and integration tests
         if: matrix.django_app == '__flaky__'
-        run: docker compose run app python manage.py test --keepdb -v2 --tag="flaky" qfieldcloud
+        run: |
+          docker compose run app python manage.py test --keepdb -v2 --tag="flaky" qfieldcloud
 
       - name: Run Object Storage Cleaner tests
         if: matrix.django_app == 'filestorage' && matrix.storage == 'default'
@@ -152,9 +148,10 @@ jobs:
             -v ${{ github.workspace }}/scripts:/usr/src/scripts \
             app python /usr/src/scripts/object_storage_cleaner/test.py
 
-      - name: failure logs
+      - name: "failure logs"
         if: failure()
-        run: docker compose logs
+        run: |
+          docker compose logs
 
       - name: Post Google Chat message on failure
         if: failure() && matrix.django_app != '__flaky__'
@@ -163,3 +160,10 @@ jobs:
           message: |
             Failed job run for branch `${{ github.head_ref || github.ref_name }}`, check ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} .
           gchat_webhook_url: ${{ secrets.GOOGLE_CHAT_WEBHOOK_URL }}
+
+      # - name: Setup tmate session
+      #   if: ${{ failure() }}
+      #   uses: mxschmitt/action-tmate@v3
+      #   timeout-minutes: 30
+      #   with:
+      #     limit-access-to-actor: true
