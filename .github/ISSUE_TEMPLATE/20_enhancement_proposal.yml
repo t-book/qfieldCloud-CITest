@@ -1,5 +1,5 @@
 name: Enhancement proposal for QFieldCloud
-description: Developer issue: propose an enhancement before implementing changes to QFieldCloud.
+description: "Developer issue: propose an enhancement before implementing changes to QFieldCloud."
 labels:
   - 'Enhancement'
 body:
