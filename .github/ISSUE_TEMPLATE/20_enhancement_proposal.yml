@@ -1,5 +1,5 @@
 name: Enhancement proposal for QFieldCloud
-description: Create an enhancement proposal for QFieldCloud before opening a pull request.
+description: Developer issue: propose an enhancement before implementing changes to QFieldCloud.
 labels:
   - 'Enhancement'
 body:
