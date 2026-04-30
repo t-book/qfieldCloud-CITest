@@ -1,8 +1,7 @@
 name: Enhancement proposal for QFieldCloud
 description: |
-        Thanks for taking the time to fill out this enhancement proposal correctly.
-
-        Please report only enhancement proposals related to the QFieldCloud application.
+        Create an enhancement proposal for QFieldCloud before opening a pull request.
+        This will help us understand the problem you are trying to solve and the solution you are proposing, and will increase the chances of your pull request being accepted.
 labels:
   - 'Enhancement'
 body:
