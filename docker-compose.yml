@@ -166,14 +166,16 @@ services:
     command: python manage.py dequeue
     user: root # TODO change me to least privileged docker-capable user on the host (/!\ docker users!=hosts users, use UID rather than username)
     cap_drop:
-      - ALL
-    cap_add:
-      - CHOWN
+      - ALL     # Remove all Linux capabilities (prevents privilege escalation attacks)
     security_opt:
-      - no-new-privileges:true
-    read_only: true
+      - no-new-privileges:true # Make root filesystem read-only (prevents malware persistence)
+    read_only: true # Temporary writable in-memory filesystem for runtime files (processes can write to /run but it's deleted on container restart)
     tmpfs:
       - /run:rw,noexec,nosuid,size=512m
+        # rw = readable/writable
+        # noexec = can't execute binaries from here (security)
+        # nosuid = can't use setuid bit here (security)
+        # size=512m = limit to prevent disk exhaustion DoS
     volumes:
       # TODO : how can we reuse static/media volumes from default-django to keep things DRY (yaml syntax expert needed)
       - static_volume:/usr/src/app/staticfiles
