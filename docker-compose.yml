@@ -165,6 +165,15 @@ services:
       target: worker_wrapper_runtime
     command: python manage.py dequeue
     user: root # TODO change me to least privileged docker-capable user on the host (/!\ docker users!=hosts users, use UID rather than username)
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=1g
     volumes:
       # TODO : how can we reuse static/media volumes from default-django to keep things DRY (yaml syntax expert needed)
       - static_volume:/usr/src/app/staticfiles
