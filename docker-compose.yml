@@ -173,7 +173,7 @@ services:
       - no-new-privileges:true
     read_only: true
     tmpfs:
-      - /tmp:rw,noexec,nosuid,size=1g
+      - /run:rw,noexec,nosuid,size=512m
     volumes:
       # TODO : how can we reuse static/media volumes from default-django to keep things DRY (yaml syntax expert needed)
       - static_volume:/usr/src/app/staticfiles
